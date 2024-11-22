@@ -1,4 +1,4 @@
-name: OWASP ZAP Baseline Scan
+name: OWASP ZAP Scan
 
 on:
   push:
@@ -8,21 +8,27 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  zap_scan:
+  zap-scan:
     runs-on: ubuntu-latest
-    name: Baseline ZAP Scan
     steps:
-      # Clonar el repositorio
-      - name: Check out Git repository
+      # Clonar el código
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      # Limpiar el sistema Docker (opcional, para evitar conflictos)
+      # Limpiar el sistema Docker
       - name: Clean Docker System
         run: docker system prune -af
 
       # Iniciar sesión en Docker Hub
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      # Instalar dependencias y levantar el servidor
+      - name: Setup and Start Server
+        run: |
+          npm install
+          nohup npm start &
+          sleep 15 # Espera a que el servidor inicie
 
       # Escaneo Baseline de ZAP
       - name: Run ZAP Baseline Scan
