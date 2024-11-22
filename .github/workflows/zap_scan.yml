@@ -1,4 +1,4 @@
-name: OWASP ZAP Scan
+name: OWASP ZAP Baseline Scan
 
 on:
   push:
@@ -8,14 +8,15 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  zap-scan:
+  zap_scan:
     runs-on: ubuntu-latest
+    name: Baseline ZAP Scan
     steps:
-      # Clonar el código
-      - name: Checkout Code
+      # Clonar el repositorio
+      - name: Check out Git repository
         uses: actions/checkout@v3
 
-      # Limpiar el sistema Docker
+      # Limpiar el sistema Docker (opcional, para evitar conflictos)
       - name: Clean Docker System
         run: docker system prune -af
 
@@ -23,23 +24,18 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # Instalar dependencias y levantar el servidor
-      - name: Setup and Start Server
-        run: |
-          npm install
-          nohup npm start &
-          sleep 15 # Espera a que el servidor inicie
-
-      # Ejecutar OWASP ZAP
-      - name: Run OWASP ZAP Full Scan
-        uses: zaproxy/action-full-scan@v0.5.0
+      # Escaneo Baseline de ZAP
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.9.0
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           target: 'http://localhost:3000' # Cambia según tu aplicación
-          cmd_options: '-config api.disablekey=true'
+          rules_file_name: '.zap/rules.tsv' # Archivo de reglas opcional
+          cmd_options: '-a -j'
 
-      # Cargar reporte como artefacto
+      # Cargar el reporte como artefacto
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v3
         with:
-          name: zap-report
-          path: owasp-zap-report.html
+          name: zap-baseline-report
+          path: zap.out
