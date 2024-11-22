@@ -12,7 +12,7 @@ import { MatPaginator } from '@angular/material/paginator'
 import { forkJoin, type Subscription } from 'rxjs'
 import { MatTableDataSource } from '@angular/material/table'
 import { MatDialog } from '@angular/material/dialog'
-import { DomSanitizer, type SafeHtml } from '@angular/platform-browser'
+import { DomSanitizer, SecurityContext } from '@angular/platform-browser'
 import { TranslateService } from '@ngx-translate/core'
 import { SocketIoService } from '../Services/socket-io.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
@@ -46,7 +46,7 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   public pageSizeOptions: number[] = []
   public dataSource!: MatTableDataSource<TableEntry>
   public gridDataSource!: any
-  public searchValue?: SafeHtml
+  public searchValue?: string
   public resultsLength = 0
   @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator | null = null
   private readonly productSubscription?: Subscription
@@ -54,19 +54,29 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   public breakpoint: number = 6
   public emptyState = false
 
-  constructor (private readonly deluxeGuard: DeluxeGuard, private readonly dialog: MatDialog, private readonly productService: ProductService,
-    private readonly quantityService: QuantityService, private readonly basketService: BasketService, private readonly translateService: TranslateService,
-    private readonly router: Router, private readonly route: ActivatedRoute, private readonly sanitizer: DomSanitizer, private readonly ngZone: NgZone, private readonly io: SocketIoService,
-    private readonly snackBarHelperService: SnackBarHelperService, private readonly cdRef: ChangeDetectorRef) { }
+  constructor (
+    private readonly deluxeGuard: DeluxeGuard,
+    private readonly dialog: MatDialog,
+    private readonly productService: ProductService,
+    private readonly quantityService: QuantityService,
+    private readonly basketService: BasketService,
+    private readonly translateService: TranslateService,
+    private readonly router: Router,
+    private readonly route: ActivatedRoute,
+    private readonly sanitizer: DomSanitizer,
+    private readonly ngZone: NgZone,
+    private readonly io: SocketIoService,
+    private readonly snackBarHelperService: SnackBarHelperService,
+    private readonly cdRef: ChangeDetectorRef
+  ) {}
 
-  // vuln-code-snippet start restfulXssChallenge
   ngAfterViewInit () {
     const products = this.productService.search('')
     const quantities = this.quantityService.getAll()
     forkJoin([quantities, products]).subscribe(([quantities, products]) => {
       const dataTable: TableEntry[] = []
       this.tableData = products
-      this.trustProductDescription(products) // vuln-code-snippet neutral-line restfulXssChallenge
+      this.sanitizeProductDescriptions(products)
       for (const product of products) {
         dataTable.push({
           name: product.name,
@@ -98,10 +108,10 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
       this.routerSubscription = this.router.events.subscribe(() => {
         this.filterTable()
       })
-      const challenge: string = this.route.snapshot.queryParams.challenge // vuln-code-snippet hide-start
+      const challenge: string = this.route.snapshot.queryParams.challenge
       if (challenge && this.route.snapshot.url.join('').match(/hacking-instructor/)) {
         this.startHackingInstructor(decodeURIComponent(challenge))
-      } // vuln-code-snippet hide-end
+      }
       if (window.innerWidth < 2600) {
         this.breakpoint = 4
         if (window.innerWidth < 1740) {
@@ -120,12 +130,11 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
     }, (err) => { console.log(err) })
   }
 
-  trustProductDescription (tableData: any[]) { // vuln-code-snippet neutral-line restfulXssChallenge
-    for (let i = 0; i < tableData.length; i++) { // vuln-code-snippet neutral-line restfulXssChallenge
-      tableData[i].description = this.sanitizer.bypassSecurityTrustHtml(tableData[i].description) // vuln-code-snippet vuln-line restfulXssChallenge
-    } // vuln-code-snippet neutral-line restfulXssChallenge
-  } // vuln-code-snippet neutral-line restfulXssChallenge
-  // vuln-code-snippet end restfulXssChallenge
+  sanitizeProductDescriptions (tableData: any[]) {
+    for (const product of tableData) {
+      product.description = this.sanitizer.sanitize(SecurityContext.HTML, product.description)
+    }
+  }
 
   ngOnDestroy () {
     if (this.routerSubscription) {
@@ -139,22 +148,17 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
     }
   }
 
-  // vuln-code-snippet start localXssChallenge xssBonusChallenge
   filterTable () {
     let queryParam: string = this.route.snapshot.queryParams.q
     if (queryParam) {
       queryParam = queryParam.trim()
-      this.ngZone.runOutsideAngular(() => { // vuln-code-snippet hide-start
+      this.ngZone.runOutsideAngular(() => {
         this.io.socket().emit('verifyLocalXssChallenge', queryParam)
-      }) // vuln-code-snippet hide-end
+      })
       this.dataSource.filter = queryParam.toLowerCase()
-      this.searchValue = this.sanitizer.bypassSecurityTrustHtml(queryParam) // vuln-code-snippet vuln-line localXssChallenge xssBonusChallenge
+      this.searchValue = this.sanitizer.sanitize(SecurityContext.HTML, queryParam) || ''
       this.gridDataSource.subscribe((result: any) => {
-        if (result.length === 0) {
-          this.emptyState = true
-        } else {
-          this.emptyState = false
-        }
+        this.emptyState = result.length === 0
       })
     } else {
       this.dataSource.filter = ''
@@ -162,7 +166,6 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
       this.emptyState = false
     }
   }
-  // vuln-code-snippet end localXssChallenge xssBonusChallenge
 
   startHackingInstructor (challengeName: string) {
     console.log(`Starting instructions for challenge "${challengeName}"`)
@@ -185,11 +188,10 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
     this.basketService.find(Number(sessionStorage.getItem('bid'))).subscribe((basket) => {
       const productsInBasket: any = basket.Products
       let found = false
-      for (let i = 0; i < productsInBasket.length; i++) {
-        if (productsInBasket[i].id === id) {
+      for (const product of productsInBasket) {
+        if (product.id === id) {
           found = true
-          this.basketService.get(productsInBasket[i].BasketItem.id).subscribe((existingBasketItem) => {
-            // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
+          this.basketService.get(product.BasketItem.id).subscribe((existingBasketItem) => {
             const newQuantity = existingBasketItem.quantity + 1
             this.basketService.put(existingBasketItem.id, { quantity: newQuantity }).subscribe((updatedBasketItem) => {
               this.productService.get(updatedBasketItem.ProductId).subscribe((product) => {
