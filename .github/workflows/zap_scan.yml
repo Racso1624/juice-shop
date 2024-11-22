@@ -15,7 +15,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # Iniciar sesión en Docker
+      # Limpiar el sistema Docker
+      - name: Clean Docker System
+        run: docker system prune -af
+
+      # Iniciar sesión en Docker Hub
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
