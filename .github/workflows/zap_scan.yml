@@ -1,4 +1,4 @@
-name: OWASP ZAP DAST
+name: OWASP ZAP DAST with TypeScript Fix
 
 on:
   push:
@@ -15,21 +15,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Instalar dependencias y limpiar cualquier instalación previa
-      - name: Set up dependencies
+      # Configurar dependencias y corregir problemas con TypeScript y lodash
+      - name: Set up dependencies and fix TypeScript issues
         run: |
+          echo "Cleaning node_modules and lockfile..."
           rm -rf node_modules package-lock.json
-          npm install
 
-      # Validar si existe el script build, si no, configurar uno temporal
-      - name: Ensure build script exists
+          echo "Installing dependencies with fixed versions..."
+          npm install
+          npm install typescript@latest --save-dev
+          npm install @types/lodash@latest --save-dev
+
+      # Validar y ajustar tsconfig.json si es necesario
+      - name: Ensure tsconfig.json compatibility
         run: |
-          if ! grep -q '"build"' package.json; then
-            echo 'Adding temporary build script to package.json'
-            sed -i '/"scripts": {/a \ \ \ \ "build": "echo No build script provided",' package.json
+          if ! grep -q '"skipLibCheck": true' tsconfig.json; then
+            echo "Adding 'skipLibCheck' to tsconfig.json..."
+            sed -i '/"compilerOptions": {/a \ \ \ \ "skipLibCheck": true,' tsconfig.json
           fi
 
-      # Ejecutar el build del proyecto
+      # Construir el proyecto para detectar errores
       - name: Build the project
         run: npm run build
 
@@ -38,28 +43,28 @@ jobs:
         run: |
           docker-compose up -d  # Usa esto si tienes un entorno de prueba en Docker
 
-      # Ejecuta OWASP ZAP en un contenedor Docker
+      # Ejecutar OWASP ZAP en un contenedor Docker
       - name: Start OWASP ZAP
         run: |
           docker run -d --name zap \
             -p 8080:8080 \
             owasp/zap2docker-stable zap-webswing.sh
 
-      # Escanea la aplicación usando OWASP ZAP
+      # Escanear la aplicación usando OWASP ZAP
       - name: Perform DAST scan
         run: |
           docker exec zap zap-baseline.py \
             -t http://localhost:8080 \
             -r zap_report.html
 
-      # Carga el informe generado como un artefacto
+      # Subir el reporte generado como artefacto
       - name: Upload DAST report
         uses: actions/upload-artifact@v3
         with:
           name: zap_report
           path: zap_report.html
 
-      # Opcional: Detiene y elimina el contenedor de OWASP ZAP
+      # Detener y limpiar el contenedor de OWASP ZAP
       - name: Clean up
         run: |
           docker stop zap
