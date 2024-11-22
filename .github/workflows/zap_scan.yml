@@ -31,15 +31,13 @@ jobs:
           sleep 10 # Espera a que el servidor inicie
 
       # Ejecutar OWASP ZAP en Docker
-      - name: Run OWASP ZAP
-        uses: zaproxy/action-full-scan@v0.3.0
+      - name: Run OWASP ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.5.0
         with:
-          target: 'http://localhost:3000' # Cambia por la URL de tu aplicación
-          rules_file_name: '.zap/rules.json' # Opcional: Configura reglas personalizadas
-          report_format: 'HTML' # Formato de reporte
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.json'
           cmd_options: '-config api.disablekey=true'
 
-      # Cargar los resultados del escaneo
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v3
         with:
