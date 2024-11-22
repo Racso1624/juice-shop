@@ -15,11 +15,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Opcional: instala dependencias o configura el entorno de prueba
+      # Instalar dependencias y limpiar cualquier instalación previa
+      - name: Set up dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+
+      # Validar si existe el script build, si no, configurar uno temporal
+      - name: Ensure build script exists
+        run: |
+          if ! grep -q '"build"' package.json; then
+            echo 'Adding temporary build script to package.json'
+            sed -i '/"scripts": {/a \ \ \ \ "build": "echo No build script provided",' package.json
+          fi
+
+      # Ejecutar el build del proyecto
+      - name: Build the project
+        run: npm run build
+
+      # Iniciar el entorno de prueba si es necesario
       - name: Set up test environment
         run: |
-          npm install
-          npm run build
           docker-compose up -d  # Usa esto si tienes un entorno de prueba en Docker
 
       # Ejecuta OWASP ZAP en un contenedor Docker
